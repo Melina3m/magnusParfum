@@ -1,0 +1,15 @@
+# Entorno virtual
+venv/
+
+# Cache de Python
+__pycache__/
+*.pyc
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Credenciales / secretos
+*.json
+
+# Sistema
+.DS_Store
