@@ -22,7 +22,15 @@ def render_fiados(db):
 
     if resumen:
         st.markdown("### Resumen por cliente")
-        st.dataframe(pd.DataFrame(resumen), use_container_width=True)
+        df_resumen = pd.DataFrame(resumen)
+        st.dataframe(
+            df_resumen.style.format({
+                "total": "{:,.0f}",
+                "pagado": "{:,.0f}",
+                "saldo": "{:,.0f}"
+            }).replace(",", "."), 
+            use_container_width=True
+        )
     else:
         st.info("No hay créditos registrados.")
 
