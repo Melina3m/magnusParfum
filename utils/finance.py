@@ -1,7 +1,14 @@
+import streamlit as st
+import pandas as pd
+from datetime import date
+from utils import cop
+
+# =============== LÓGICA INTERNA ===============
+
 def _movements_ledger(db):
     """Construye el libro de movimientos de caja/banco"""
     movs = []
-
+    
     # Ventas
     for s in db.get("sales", []):
         amt = float(s.get("quantity", 0) or 0) * float(s.get("unit_price", 0) or 0)
@@ -63,15 +70,14 @@ def _movements_ledger(db):
         })
 
     def _key(m):
-        try:
-            return m["fecha"]
-        except Exception:
-            return ""
-    movs.sort(key=_key)
+        try: return m["fecha"]
+        except: return ""
+            
+    movs.sort(key=_key, reverse=True) # Ordenados por fecha (más recientes primero)
     return movs
 
 def cash_bank_balances(db):
-    """Calcula saldos de Caja y Banco"""
+    """Calcula saldos netos de Caja y Banco"""
     caja = 0.0
     banco = 0.0
     for m in _movements_ledger(db):
@@ -81,3 +87,33 @@ def cash_bank_balances(db):
         else:
             banco += sign * float(m["monto"] or 0)
     return caja, banco
+
+# =============== VISUALIZACIÓN (STREAMLIT) ===============
+
+def render_cash_and_bank(db):
+    st.subheader("🏦 Caja y Bancos")
+
+    # 1. Mostrar métricas superiores
+    saldo_caja, saldo_banco = cash_bank_balances(db)
+    c1, c2 = st.columns(2)
+    c1.metric("Efectivo en Caja", cop(saldo_caja))
+    c2.metric("Saldo en Banco", cop(saldo_banco))
+
+    st.markdown("---")
+    st.markdown("### Libro Diario de Movimientos")
+
+    # 2. Generar el libro y mostrarlo con formato de miles
+    ledger = _movements_ledger(db)
+
+    if ledger:
+        df_ledger = pd.DataFrame(ledger)
+        
+        # --- AQUÍ SE ACTIVAN LOS MILES CON PUNTOS ---
+        st.dataframe(
+            df_ledger.style.format({
+                "monto": "{:,.0f}"
+            }).replace(",", "."), 
+            use_container_width=True
+        )
+    else:
+        st.info("No hay movimientos registrados.")
