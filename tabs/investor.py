@@ -25,8 +25,16 @@ def render_investor(db):
             })
             st.success("Movimiento guardado.")
             st.rerun()
-    
+
     if db["investor"]:
-        st.dataframe(pd.DataFrame(db["investor"]), use_container_width=True)
+        # --- CAMBIO AQUÍ: Formato de miles para la tabla de inversionista ---
+        df_inv = pd.DataFrame(db["investor"])
+        st.dataframe(
+            df_inv.style.format({
+                "amount": "{:,.0f}"
+            }).replace(",", "."), 
+            use_container_width=True
+        )
+        # -------------------------------------------------------------------
     else:
         st.info("Sin movimientos.")
