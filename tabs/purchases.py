@@ -52,57 +52,54 @@ def render_purchases(db):
                 notes = e2.text_input("Notas", key="notes_inv2")
             
             ok = st.form_submit_button("Registrar compra")
-        
-        if ok:
-            if creando_nuevo:
-                if not new_name.strip():
-                    st.error("El nombre es obligatorio.")
-                    st.stop()
-                new_prod = {
-                    "id": uid(), "name": new_name.strip(), "brand": new_brand.strip(),
-                    "size_ml": int(new_size or 0), "cost": float(unit_cost or 0),
-                    "price": float(new_price or 0), "stock": 0, "notes": "", "inv": True
+            
+            if ok:
+                if creando_nuevo:
+                    if not new_name.strip():
+                        st.error("El nombre es obligatorio.")
+                        st.stop()
+                    new_prod = {
+                        "id": uid(), "name": new_name.strip(), "brand": new_brand.strip(),
+                        "size_ml": int(new_size or 0), "cost": float(unit_cost or 0),
+                        "price": float(new_price or 0), "stock": 0, "notes": "", "inv": True
+                    }
+                    insert_record("inventory", new_prod)
+                    prod = new_prod
+                    db["inventory"].insert(0, new_prod)
+                else:
+                    prod = db["inventory"][selected_index]
+                
+                purchase_id = uid()
+                purchase = {
+                    "id": purchase_id, "date": pdate.isoformat(), "item_id": prod["id"],
+                    "quantity": int(quantity), "unit_cost": float(unit_cost or 0),
+                    "supplier": supplier.strip(), "notes": notes.strip(), "invoice": invoice.strip()
                 }
-                insert_record("inventory", new_prod)
-                prod = new_prod
-                db["inventory"].insert(0, new_prod)
-            else:
-                prod = db["inventory"][selected_index]
-            
-            purchase_id = uid()
-            purchase = {
-                "id": purchase_id, "date": pdate.isoformat(), "item_id": prod["id"],
-                "quantity": int(quantity), "unit_cost": float(unit_cost or 0),
-                "supplier": supplier.strip(), "notes": notes.strip(), "invoice": invoice.strip()
-            }
-            if pago == "Contado":
-                purchase["cash_method"] = medio_contado
-            
-            insert_record("purchases", purchase)
-            
-            # Actualizar stock y costo
-            new_stock = int(prod.get("stock", 0)) + int(quantity)
-            update_data = {"stock": new_stock}
-            if float(unit_cost or 0) > 0:
-                update_data["cost"] = float(unit_cost)
-            update_record("inventory", update_data, prod["id"])
-            
-            # Crear crédito si es necesario
-            if pago == "Crédito proveedor":
-                if not supplier.strip():
-                    st.error("Para crédito proveedor debes indicar el proveedor.")
-                    st.stop()
-                total = int(quantity) * float(unit_cost or 0)
-                insert_record("supplier_credits", {
-                    "id": uid(), "supplier": supplier.strip(), "date": pdate.isoformat(),
-                    "purchase_id": purchase_id, "invoice": invoice.strip(),
-                    "total": float(total), "paid": 0.0,
-                    "due_date": due.isoformat() if due else None, "notes": notes.strip()
-                })
-            
-            st.success("Compra registrada. Inventario actualizado.")
-            st.rerun()
-    
+                if pago == "Contado":
+                    purchase["cash_method"] = medio_contado
+                
+                insert_record("purchases", purchase)
+                
+                new_stock = int(prod.get("stock", 0)) + int(quantity)
+                update_data = {"stock": new_stock}
+                if float(unit_cost or 0) > 0:
+                    update_data["cost"] = float(unit_cost)
+                update_record("inventory", update_data, prod["id"])
+                
+                if pago == "Crédito proveedor":
+                    if not supplier.strip():
+                        st.error("Para crédito proveedor debes indicar el proveedor.")
+                        st.stop()
+                    total = int(quantity) * float(unit_cost or 0)
+                    insert_record("supplier_credits", {
+                        "id": uid(), "supplier": supplier.strip(), "date": pdate.isoformat(),
+                        "purchase_id": purchase_id, "invoice": invoice.strip(),
+                        "total": float(total), "paid": 0.0,
+                        "due_date": due.isoformat() if due else None, "notes": notes.strip()
+                    })
+                st.success("Compra registrada. Inventario actualizado.")
+                st.rerun()
+
     # --- GASTOS OPERATIVOS ---
     else:
         with st.form("purchase_form_gasto", clear_on_submit=True):
@@ -129,39 +126,47 @@ def render_purchases(db):
                 due = e1.date_input("Vence", value=date.today(), key="due_gasto")
             
             ok2 = st.form_submit_button("Registrar gasto")
-        
-        if ok2:
-            purchase_id = uid()
-            purchase = {
-                "id": purchase_id, "date": pdate.isoformat(), "item_id": "",
-                "quantity": 1, "unit_cost": float(total_gasto or 0),
-                "supplier": supplier.strip(),
-                "notes": (categoria.strip() + " — " if categoria else "") + notes.strip(),
-                "invoice": invoice.strip()
-            }
-            if pago == "Contado":
-                purchase["cash_method"] = medio_gasto
             
-            insert_record("purchases", purchase)
-            
-            if pago == "Crédito proveedor":
-                if not supplier.strip():
-                    st.error("Para crédito proveedor debes indicar el proveedor.")
-                    st.stop()
-                insert_record("supplier_credits", {
-                    "id": uid(), "supplier": supplier.strip(), "date": pdate.isoformat(),
-                    "purchase_id": purchase_id, "invoice": invoice.strip(),
-                    "total": float(total_gasto or 0), "paid": 0.0,
-                    "due_date": due.isoformat() if due else None,
-                    "notes": (categoria.strip() + " — " if categoria else "") + notes.strip()
-                })
-            
-            st.success("Gasto registrado.")
-            st.rerun()
-    
-    # Historial
+            if ok2:
+                purchase_id = uid()
+                purchase = {
+                    "id": purchase_id, "date": pdate.isoformat(), "item_id": "",
+                    "quantity": 1, "unit_cost": float(total_gasto or 0),
+                    "supplier": supplier.strip(),
+                    "notes": (categoria.strip() + " — " if categoria else "") + notes.strip(),
+                    "invoice": invoice.strip()
+                }
+                if pago == "Contado":
+                    purchase["cash_method"] = medio_gasto
+                
+                insert_record("purchases", purchase)
+                
+                if pago == "Crédito proveedor":
+                    if not supplier.strip():
+                        st.error("Para crédito proveedor debes indicar el proveedor.")
+                        st.stop()
+                    insert_record("supplier_credits", {
+                        "id": uid(), "supplier": supplier.strip(), "date": pdate.isoformat(),
+                        "purchase_id": purchase_id, "invoice": invoice.strip(),
+                        "total": float(total_gasto or 0), "paid": 0.0,
+                        "due_date": due.isoformat() if due else None,
+                        "notes": (categoria.strip() + " — " if categoria else "") + notes.strip()
+                    })
+                st.success("Gasto registrado.")
+                st.rerun()
+
+    # --- HISTORIAL CON FORMATO ---
     if db["purchases"]:
         st.markdown("### Historial de compras/gastos")
-        st.dataframe(pd.DataFrame(db["purchases"]), use_container_width=True)
+        df_purchases = pd.DataFrame(db["purchases"])
+        
+        # Aplicamos formato de miles a unit_cost y cantidad
+        st.dataframe(
+            df_purchases.style.format({
+                "unit_cost": "{:,.0f}",
+                "quantity": "{:,.0f}"
+            }).replace(",", "."), 
+            use_container_width=True
+        )
     else:
         st.info("Sin compras/gastos registrados.")
