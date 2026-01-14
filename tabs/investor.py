@@ -27,14 +27,15 @@ def render_investor(db):
             st.rerun()
 
     if db["investor"]:
-        # --- CAMBIO AQUÍ: Formato de miles para la tabla de inversionista ---
         df_inv = pd.DataFrame(db["investor"])
+        
+        # --- CAMBIO CORREGIDO: Usando el parámetro thousands ---
         st.dataframe(
             df_inv.style.format({
                 "amount": "{:,.0f}"
-            }).replace(",", "."), 
+            }, thousands="."), 
             use_container_width=True
         )
-        # -------------------------------------------------------------------
+        # -------------------------------------------------------
     else:
         st.info("Sin movimientos.")
