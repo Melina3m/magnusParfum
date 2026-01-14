@@ -44,39 +44,50 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
                       date_str: str, amount: float,
                       balance_before: float, balance_after: float,
                       notes: str = "", breakdown: list[dict] | None = None) -> bytes:
-    """Genera recibo PDF con breakdown"""
+    """Genera recibo PDF con IDs recortados para que no se desborde la tabla"""
     logo_path = _get_logo_temp_path(db)
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-
+    
     _pdf_header(pdf, f"RECIBO DE ABONO - {who_type}", logo_path)
-
-    _pdf_kv(pdf, "Recibo", receipt_id)
+    
+    # Recortamos el ID del recibo si es muy largo
+    rid_display = receipt_id[-8:] if len(receipt_id) > 10 else receipt_id
+    
+    _pdf_kv(pdf, "Recibo", rid_display)
     _pdf_kv(pdf, "Fecha", date_str)
     _pdf_kv(pdf, who_type.title(), who_name or ("Cliente" if who_type=="CLIENTE" else "Proveedor"))
     _pdf_kv(pdf, "Monto abonado", cop(amount))
     _pdf_kv(pdf, "Saldo ANTES", cop(balance_before))
     _pdf_kv(pdf, "Saldo DESPUÉS", cop(balance_after))
+    
     if notes:
         _pdf_kv(pdf, "Notas", notes)
-
+        
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "Desglose de aplicación", ln=1)
+    
     pdf.set_font("Helvetica", "", 10)
     if breakdown:
         pdf.set_fill_color(240, 240, 240)
-        pdf.cell(50, 7, "ID deuda", border=1, align="C", fill=True)
-        pdf.cell(40, 7, "Fecha", border=1, align="C", fill=True)
-        pdf.cell(40, 7, "Aplicado", border=1, align="C", fill=True)
-        pdf.cell(40, 7, "Saldo restante", border=1, align="C", fill=True)
+        # Ajustamos los anchos para dar más espacio
+        pdf.cell(35, 7, "ID deuda", border=1, align="C", fill=True) 
+        pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
+        pdf.cell(50, 7, "Aplicado", border=1, align="C", fill=True)
+        pdf.cell(50, 7, "Saldo restante", border=1, align="C", fill=True)
         pdf.ln(7)
+        
         for row in breakdown:
-            pdf.cell(50, 7, str(row.get("id","")), border=1)
-            pdf.cell(40, 7, str(row.get("date",""))[:10], border=1)
-            pdf.cell(40, 7, cop(row.get("applied", 0)), border=1, align="R")
-            pdf.cell(40, 7, cop(row.get("remaining", 0)), border=1, align="R")
+            # --- AQUÍ RECORTAMOS EL ID LARGO ---
+            full_id = str(row.get("id",""))
+            short_id = full_id[-8:] if len(full_id) > 8 else full_id
+            
+            pdf.cell(35, 7, short_id, border=1, align="C")
+            pdf.cell(35, 7, str(row.get("date",""))[:10], border=1, align="C")
+            pdf.cell(50, 7, cop(row.get("applied", 0)), border=1, align="R")
+            pdf.cell(50, 7, cop(row.get("remaining", 0)), border=1, align="R")
             pdf.ln(7)
     else:
         pdf.multi_cell(0, 6, "El abono se aplicó a deudas abiertas según antigüedad (FIFO).")
@@ -85,14 +96,12 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
     pdf.set_font("Helvetica", "I", 9)
     pdf.multi_cell(0, 5, "Este recibo ha sido generado automáticamente por el sistema de gestión de Magnus Parfum.")
 
-    # Generar PDF en memoria
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
-    
-    # Limpiar archivo temporal del logo
+
     try:
         if logo_path and os.path.exists(logo_path):
             os.remove(logo_path)
     except Exception:
         pass
-    
+        
     return pdf_bytes
