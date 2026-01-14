@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database import insert_record, update_record, delete_record
-from utils import uid
+from utils import uid, cop # Importamos cop para los ajustes rápidos
 
 def render_inventory(db):
     st.subheader("Inventario")
@@ -12,9 +12,11 @@ def render_inventory(db):
         brand = c2.text_input("Marca", placeholder="Emper, Armani, ...")
         size_ml = c3.number_input("Tamaño (ml)", min_value=0, step=1, value=0)
         stock = c4.number_input("Stock inicial", min_value=0, step=1, value=0)
+        
         c5, c6 = st.columns(2)
         cost = c5.number_input("Costo unitario", min_value=0.0, step=1000.0, value=0.0, format="%.0f")
         price = c6.number_input("Precio de venta", min_value=0.0, step=1000.0, value=0.0, format="%.0f")
+        
         inv_flag = st.checkbox("Contar este perfume para inversionista", value=True)
         notes = st.text_input("Notas (opcional)")
         submitted = st.form_submit_button("Agregar/Actualizar")
@@ -23,7 +25,6 @@ def render_inventory(db):
             if not name.strip():
                 st.error("El nombre es obligatorio.")
             else:
-             
                 found = None
                 for p in db["inventory"]:
                     if (p.get("name","").strip().lower() == name.strip().lower()
@@ -47,17 +48,27 @@ def render_inventory(db):
                     }
                     insert_record("inventory", new_prod)
                     st.success("Producto agregado.")
-                
                 st.rerun()
 
     # Búsqueda
     q = st.text_input("Buscar", "")
     df_inv = pd.DataFrame(db["inventory"])
+    
     if not df_inv.empty:
         if q:
             mask = df_inv.apply(lambda r: q.lower() in f"{r.get('name','')} {r.get('brand','')}".lower(), axis=1)
             df_inv = df_inv[mask]
-        st.dataframe(df_inv, use_container_width=True)
+        
+        # --- CAMBIO AQUÍ: Formato de miles para la tabla de inventario ---
+        st.dataframe(
+            df_inv.style.format({
+                "cost": "{:,.0f}",
+                "price": "{:,.0f}",
+                "stock": "{:,.0f}"
+            }).replace(",", "."), 
+            use_container_width=True
+        )
+        # ---------------------------------------------------------------
     else:
         st.info("No hay productos aún.")
 
@@ -65,8 +76,13 @@ def render_inventory(db):
     st.markdown("### Ajustes rápidos de stock")
     for p in db["inventory"]:
         c1, c2, c3, c4, c5 = st.columns([2,1,1,1,1])
-        c1.write(f"**{p['name']}** — {p.get('brand','')} ({p.get('size_ml','')} ml)")
+        # Usamos cop() para que el costo y precio se vean bien aquí también
+        info_prod = f"**{p['name']}** — {p.get('brand','')} ({p.get('size_ml','')} ml)"
+        precios = f" | Costo: {cop(p.get('cost',0))} | PVP: {cop(p.get('price',0))}"
+        
+        c1.write(info_prod + precios)
         c2.write(f"Stock: {p.get('stock',0)}")
+        
         if c3.button("+1", key=f"plus_{p['id']}"):
             update_record("inventory", {"stock": int(p.get("stock", 0)) + 1}, p["id"])
             st.rerun()
