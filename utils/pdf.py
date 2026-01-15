@@ -44,7 +44,7 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
                       date_str: str, amount: float,
                       balance_before: float, balance_after: float,
                       notes: str = "", breakdown: list[dict] | None = None) -> bytes:
-    """Genera recibo PDF con IDs recortados para que no se desborde la tabla"""
+    
     logo_path = _get_logo_temp_path(db)
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -52,7 +52,6 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
     
     _pdf_header(pdf, f"RECIBO DE ABONO - {who_type}", logo_path)
     
-    # Recortamos el ID del recibo si es muy largo
     rid_display = receipt_id[-8:] if len(receipt_id) > 10 else receipt_id
     
     _pdf_kv(pdf, "Recibo", rid_display)
@@ -64,26 +63,23 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
     
     if notes:
         _pdf_kv(pdf, "Notas", notes)
-        
+            
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "Desglose de aplicación", ln=1)
+    pdf.cell(0, 8, "Desglose de aplicación (Hoy)", ln=1)
     
     pdf.set_font("Helvetica", "", 10)
     if breakdown:
         pdf.set_fill_color(240, 240, 240)
-        # Ajustamos los anchos para dar más espacio
         pdf.cell(35, 7, "ID deuda", border=1, align="C", fill=True) 
-        pdf.cell(35, 7, "Fecha", border=1, align="C", fill=True)
+        pdf.cell(35, 7, "F. Venta", border=1, align="C", fill=True)
         pdf.cell(50, 7, "Aplicado", border=1, align="C", fill=True)
         pdf.cell(50, 7, "Saldo restante", border=1, align="C", fill=True)
         pdf.ln(7)
         
         for row in breakdown:
-            # --- AQUÍ RECORTAMOS EL ID LARGO ---
             full_id = str(row.get("id",""))
             short_id = full_id[-8:] if len(full_id) > 8 else full_id
-            
             pdf.cell(35, 7, short_id, border=1, align="C")
             pdf.cell(35, 7, str(row.get("date",""))[:10], border=1, align="C")
             pdf.cell(50, 7, cop(row.get("applied", 0)), border=1, align="R")
@@ -92,16 +88,46 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
     else:
         pdf.multi_cell(0, 6, "El abono se aplicó a deudas abiertas según antigüedad (FIFO).")
 
+    # --- NUEVA SECCIÓN: HISTORIAL DE PAGOS ---
+    # Buscamos pagos previos en la base de datos
+    key_db = "credit_payments" if who_type == "CLIENTE" else "supplier_payments"
+    filter_key = "customer" if who_type == "CLIENTE" else "supplier"
+    
+    historial = [p for p in db.get(key_db, []) if p.get(filter_key) == who_name]
+    
+    # Si hay más de un pago (el de hoy y anteriores), mostramos la tabla
+    if len(historial) > 1:
+        pdf.ln(6)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, "Resumen Histórico de Abonos", ln=1)
+        
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_fill_color(230, 235, 245) # Un tono azul sutil
+        pdf.cell(45, 7, "Fecha Pago", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Monto", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Medio", border=1, align="C", fill=True)
+        pdf.cell(40, 7, "Referencia", border=1, align="C", fill=True)
+        pdf.ln(7)
+        
+        pdf.set_font("Helvetica", "", 9)
+        # Mostramos los últimos 5 para no saturar la hoja
+        for p in historial[-5:]:
+            pdf.cell(45, 6, str(p.get("date",""))[:10], border=1, align="C")
+            pdf.cell(45, 6, cop(p.get("amount", 0)), border=1, align="R")
+            pdf.cell(45, 6, str(p.get("method", "N/A")), border=1, align="C")
+            p_id = str(p.get("id",""))[-6:]
+            pdf.cell(40, 6, p_id, border=1, align="C")
+            pdf.ln(6)
+
     pdf.ln(10)
     pdf.set_font("Helvetica", "I", 9)
-    pdf.multi_cell(0, 5, "Este recibo ha sido generado automáticamente por el sistema de gestión de Magnus Parfum.")
+    pdf.multi_cell(0, 5, "Este recibo ha sido generado automáticamente por el sistema de gestión de Magnus Parfum. Gracias por su confianza.")
 
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
-
     try:
         if logo_path and os.path.exists(logo_path):
             os.remove(logo_path)
     except Exception:
         pass
-        
+            
     return pdf_bytes
