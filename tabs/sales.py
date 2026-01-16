@@ -176,49 +176,51 @@ def render_sales(db):
                 prod = db["inventory"][selected_idx]
                 qty = int(quantity)
                 
+                # Advertencia si el stock es insuficiente, pero permite continuar
                 if prod.get("stock", 0) < qty:
-                    st.error(f"Stock insuficiente. Solo quedan {prod.get('stock', 0)} unidades disponibles.")
-                else:
-                    price = float(unit_price or prod.get("price", 0))
-                    current_cost = float(prod.get("cost", 0))
-                    
-                    sale = {
+                    st.warning(f"⚠️ Advertencia: Stock actual es {prod.get('stock', 0)} unidades. El stock quedará en negativo ({prod.get('stock', 0) - qty}).")
+                
+                # Permitir la venta siempre
+                price = float(unit_price or prod.get("price", 0))
+                current_cost = float(prod.get("cost", 0))
+                
+                sale = {
+                    "id": uid(), 
+                    "date": sdate.isoformat(), 
+                    "item_id": prod["id"],
+                    "quantity": qty, 
+                    "unit_price": price, 
+                    "cost_at_sale": current_cost,
+                    "customer": customer,
+                    "payment": payment, 
+                    "notes": notes, 
+                    "inv": bool(inv_flag_sale)
+                }
+                
+                insert_record("sales", sale)
+
+                # Actualizar Inventario (puede quedar negativo)
+                new_stock = int(prod.get("stock", 0)) - qty
+                update_record("inventory", {"stock": new_stock}, prod["id"])
+
+                # Registrar Crédito si es Fiado
+                if payment == "Fiado":
+                    credit = {
                         "id": uid(), 
+                        "customer": customer or "Cliente", 
+                        "sale_id": sale["id"],
                         "date": sdate.isoformat(), 
-                        "item_id": prod["id"],
-                        "quantity": qty, 
-                        "unit_price": price, 
-                        "cost_at_sale": current_cost,
-                        "customer": customer,
-                        "payment": payment, 
-                        "notes": notes, 
-                        "inv": bool(inv_flag_sale)
+                        "total": qty * price, 
+                        "paid": 0.0,
+                        "due_date": due.isoformat() if isinstance(due, date) else None,
+                        "phone": phone or "", 
+                        "notes": ""
                     }
-                    
-                    insert_record("sales", sale)
+                    insert_record("credits", credit)
 
-                    # Actualizar Inventario
-                    new_stock = int(prod.get("stock", 0)) - qty
-                    update_record("inventory", {"stock": new_stock}, prod["id"])
-
-                    # Registrar Crédito si es Fiado
-                    if payment == "Fiado":
-                        credit = {
-                            "id": uid(), 
-                            "customer": customer or "Cliente", 
-                            "sale_id": sale["id"],
-                            "date": sdate.isoformat(), 
-                            "total": qty * price, 
-                            "paid": 0.0,
-                            "due_date": due.isoformat() if isinstance(due, date) else None,
-                            "phone": phone or "", 
-                            "notes": ""
-                        }
-                        insert_record("credits", credit)
-
-                    profit = (price - current_cost) * qty
-                    st.success(f"Venta registrada exitosamente. Utilidad: {cop(profit)}")
-                    st.rerun()
+                profit = (price - current_cost) * qty
+                st.success(f"Venta registrada exitosamente. Utilidad: {cop(profit)}")
+                st.rerun()
 
     st.markdown("<hr style='margin: 2rem 0;'>", unsafe_allow_html=True)
 
