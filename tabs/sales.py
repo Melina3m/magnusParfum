@@ -5,51 +5,179 @@ from database import insert_record, update_record
 from utils import uid, cop
 
 def render_sales(db):
-    st.subheader("Ventas (salidas)")
+    st.markdown("""
+        <div style='margin-bottom: 2rem;'>
+            <h2 style='margin: 0; color: #1a1a2e;'>Registro de Ventas</h2>
+            <p style='margin: 0.5rem 0 0 0; color: #636e72;'>
+                Gestión de salidas de productos y transacciones
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
     
-    # Preparamos la lista de opciones
+    # Preparar opciones de productos
     options = [f"{p['name']} — Stock {p.get('stock',0)}" for p in db["inventory"]]
-    item_name = st.selectbox("Producto", options=["Selecciona..."] + options, key="sel_venta")
     
+    if not options:
+        st.warning("No hay productos en el inventario. Agrega productos primero en la pestaña de Inventario.")
+        return
+    
+    st.markdown("### Nueva Venta")
+    
+    # Selector de producto
+    item_name = st.selectbox(
+        "Selecciona el producto", 
+        options=["Selecciona un producto..."] + options, 
+        key="sel_venta",
+        help="Elige el producto que deseas vender"
+    )
+
     with st.form("sale_form", clear_on_submit=True):
         selected_idx = None
-        if item_name != "Selecciona...":
+        prod = None
+        
+        if item_name != "Selecciona un producto...":
             selected_idx = options.index(item_name)
-            
-        c1, c2, c3 = st.columns([2,1,1])
-        quantity = c2.number_input("Cantidad", min_value=1, step=1, value=1, key="qty_venta")
-        unit_price = c3.number_input("Precio unit.", min_value=0.0, step=1000.0, value=0.0, format="%.0f", key="up_venta")
-        
-        c4, c5, c6 = st.columns(3)
-        payment = c4.selectbox("Pago", options=["Efectivo", "Transferencia", "Tarjeta", "Fiado"], key="pay_venta")
-        customer = c5.text_input("Cliente", key="cust_venta")
-        sdate = c6.date_input("Fecha", value=date.today(), key="sdate_venta")
-        notes = st.text_input("Notas", key="notes_venta")
-
-        default_inv = False
-        if selected_idx is not None:
             prod = db["inventory"][selected_idx]
-            default_inv = bool(prod.get("inv", False))
-                
-        inv_flag_sale = st.checkbox("Contar esta venta para inversionista", value=default_inv, key="inv_venta")
+            
+            # Mostrar información del producto seleccionado
+            st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #d9e8ff, #b3d4ff); 
+                            padding: 1rem; border-radius: 10px; margin-bottom: 1rem;'>
+                    <strong>{prod['name']}</strong> — {prod.get('brand', 'Sin marca')} 
+                    ({prod.get('size_ml', 0)} ml) | 
+                    Stock disponible: <strong>{prod.get('stock', 0)}</strong> | 
+                    Precio sugerido: <strong>{cop(prod.get('price', 0))}</strong>
+                </div>
+            """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
         
+        with col1:
+            quantity = st.number_input(
+                "Cantidad", 
+                min_value=1, 
+                step=1, 
+                value=1, 
+                key="qty_venta",
+                help="Número de unidades a vender"
+            )
+        
+        with col2:
+            default_price = float(prod.get('price', 0)) if prod else 0.0
+            unit_price = st.number_input(
+                "Precio unitario", 
+                min_value=0.0, 
+                step=1000.0, 
+                value=default_price, 
+                format="%.0f", 
+                key="up_venta",
+                help="Precio de venta por unidad"
+            )
+        
+        with col3:
+            sdate = st.date_input(
+                "Fecha", 
+                value=date.today(), 
+                key="sdate_venta",
+                help="Fecha de la transacción"
+            )
+
+        col4, col5 = st.columns(2)
+        
+        with col4:
+            payment = st.selectbox(
+                "Forma de pago", 
+                options=["Efectivo", "Transferencia", "Tarjeta", "Fiado"], 
+                key="pay_venta",
+                help="Método de pago utilizado"
+            )
+        
+        with col5:
+            customer = st.text_input(
+                "Cliente", 
+                key="cust_venta",
+                placeholder="Nombre del cliente (opcional)",
+                help="Nombre o identificación del cliente"
+            )
+
+        # Lógica de Inversionista automática según el producto
+        default_inv = False
+        if prod:
+            default_inv = bool(prod.get("inv", False))
+        
+        inv_flag_sale = st.checkbox(
+            "Contar esta venta para el inversionista", 
+            value=default_inv, 
+            key="inv_venta",
+            help="Marca si esta venta se incluye en el cálculo de utilidades del inversionista"
+        )
+
+        # Campos adicionales para ventas a crédito
         phone, due = None, None
         if payment == "Fiado":
-            c7, c8 = st.columns(2)
-            phone = c7.text_input("Teléfono", key="phone_venta")
-            due = c8.date_input("Vence", value=date.today(), key="due_venta")
+            st.markdown("#### Información de Crédito")
+            col6, col7 = st.columns(2)
+            with col6:
+                phone = st.text_input(
+                    "Teléfono del cliente", 
+                    key="phone_venta",
+                    placeholder="Ej: 3001234567",
+                    help="Número de contacto para seguimiento"
+                )
+            with col7:
+                due = st.date_input(
+                    "Fecha de vencimiento", 
+                    value=date.today(), 
+                    key="due_venta",
+                    help="Fecha límite para el pago"
+                )
+
+        notes = st.text_area(
+            "Notas adicionales (opcional)", 
+            key="notes_venta",
+            placeholder="Observaciones sobre la venta...",
+            height=80
+        )
+
+        # Mostrar resumen de la venta
+        if prod and quantity and unit_price:
+            total_sale = quantity * unit_price
+            estimated_cost = quantity * prod.get('cost', 0)
+            estimated_profit = total_sale - estimated_cost
             
-        ok = st.form_submit_button("Registrar venta")
+            st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #d4f1e8, #b8e6d5); 
+                            padding: 1.25rem; border-radius: 10px; margin-top: 1rem;'>
+                    <div style='font-size: 0.875rem; color: #037856; margin-bottom: 0.5rem;'>
+                        <strong>RESUMEN DE LA VENTA</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; font-size: 0.95rem;'>
+                        <span>Total a cobrar:</span>
+                        <strong>{cop(total_sale)}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; font-size: 0.95rem;'>
+                        <span>Costo estimado:</span>
+                        <strong>{cop(estimated_cost)}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; font-size: 1.1rem; 
+                                margin-top: 0.5rem; padding-top: 0.5rem; border-top: 2px solid #06d6a0;'>
+                        <span>Utilidad estimada:</span>
+                        <strong style='color: #037856;'>{cop(estimated_profit)}</strong>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        ok = st.form_submit_button("Registrar Venta", use_container_width=True, type="primary")
         
         if ok:
             if selected_idx is None:
-                st.error("Selecciona un producto.")
+                st.error("Debes seleccionar un producto.")
             else:
                 prod = db["inventory"][selected_idx]
                 qty = int(quantity)
                 
                 if prod.get("stock", 0) < qty:
-                    st.error(f"Stock insuficiente. Solo quedan {prod.get('stock', 0)} unidades.")
+                    st.error(f"Stock insuficiente. Solo quedan {prod.get('stock', 0)} unidades disponibles.")
                 else:
                     price = float(unit_price or prod.get("price", 0))
                     current_cost = float(prod.get("cost", 0))
@@ -68,9 +196,12 @@ def render_sales(db):
                     }
                     
                     insert_record("sales", sale)
+
+                    # Actualizar Inventario
                     new_stock = int(prod.get("stock", 0)) - qty
                     update_record("inventory", {"stock": new_stock}, prod["id"])
-                    
+
+                    # Registrar Crédito si es Fiado
                     if payment == "Fiado":
                         credit = {
                             "id": uid(), 
@@ -84,28 +215,77 @@ def render_sales(db):
                             "notes": ""
                         }
                         insert_record("credits", credit)
-                    
-                    # Mensaje de éxito usando la función cop() para que se vea con puntos
-                    utilidad = (price - current_cost) * qty
-                    st.success(f"Venta registrada. Utilidad estimada: {cop(utilidad)}")
+
+                    profit = (price - current_cost) * qty
+                    st.success(f"Venta registrada exitosamente. Utilidad: {cop(profit)}")
                     st.rerun()
 
-    # Visualización de la tabla
+    st.markdown("<hr style='margin: 2rem 0;'>", unsafe_allow_html=True)
+
+    # Historial de ventas
+    st.markdown("### Historial de Ventas")
+    
     if db["sales"]:
-        st.markdown("### Historial de Ventas")
         df_sales = pd.DataFrame(db["sales"])
         
-        if "date" in df_sales:
+        # Ordenar por fecha descendente
+        if "date" in df_sales.columns:
             df_sales = df_sales.sort_values("date", ascending=False)
         
-        # --- CAMBIO AQUÍ: Formato de miles para la tabla de ventas ---
-        st.dataframe(
-            df_sales.style.format({
-                "unit_price": "{:,.0f}",
-                "cost_at_sale": "{:,.0f}",
-                "quantity": "{:,.0f}"
-            }).replace(",", "."), 
-            use_container_width=True
+        # Preparar datos para visualización
+        df_display = []
+        for _, sale in df_sales.iterrows():
+            prod = next((p for p in db["inventory"] if p["id"] == sale.get("item_id")), None)
+            prod_name = prod.get("name", "Producto eliminado") if prod else "Producto eliminado"
+            
+            total = sale.get("quantity", 0) * sale.get("unit_price", 0)
+            cost_total = sale.get("quantity", 0) * sale.get("cost_at_sale", 0)
+            profit = total - cost_total
+            
+            df_display.append({
+                "Fecha": sale.get("date", ""),
+                "Producto": prod_name,
+                "Cliente": sale.get("customer", "N/A") or "N/A",
+                "Cantidad": sale.get("quantity", 0),
+                "Precio Unit.": cop(sale.get("unit_price", 0)),
+                "Total": cop(total),
+                "Utilidad": cop(profit),
+                "Pago": sale.get("payment", "N/A"),
+                "INV": "Sí" if sale.get("inv") else "No"
+            })
+        
+        df_final = pd.DataFrame(df_display)
+        
+        # Mostrar tabla
+        st.dataframe(df_final, use_container_width=True, hide_index=True)
+        
+        # Estadísticas rápidas
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_sales = sum(s["quantity"] * s["unit_price"] for s in db["sales"])
+        total_profit = sum(s["quantity"] * (s["unit_price"] - s.get("cost_at_sale", 0)) 
+                          for s in db["sales"])
+        total_transactions = len(db["sales"])
+        avg_ticket = total_sales / total_transactions if total_transactions > 0 else 0
+        
+        with col1:
+            st.metric("Total Vendido", cop(total_sales))
+        with col2:
+            st.metric("Utilidad Total", cop(total_profit))
+        with col3:
+            st.metric("Transacciones", total_transactions)
+        with col4:
+            st.metric("Ticket Promedio", cop(avg_ticket))
+        
+        # Descargar CSV
+        csv = df_final.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Descargar historial en CSV",
+            data=csv,
+            file_name="historial_ventas.csv",
+            mime="text/csv"
         )
     else:
-        st.info("Sin ventas registradas.")
+        st.info("Aún no hay ventas registradas. Realiza tu primera venta usando el formulario.")
