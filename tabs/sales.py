@@ -111,6 +111,47 @@ def render_sales(db):
             key="inv_venta",
             help="Marca si esta venta se incluye en el cálculo de utilidades del inversionista"
         )
+        
+        # Opción de compra al proveedor si no hay stock suficiente
+        auto_purchase = False
+        supplier_name = ""
+        purchase_cost = 0.0
+        
+        if prod and quantity > 0:
+            stock_disponible = prod.get("stock", 0)
+            if stock_disponible < quantity:
+                faltante = quantity - stock_disponible
+                st.markdown("---")
+                st.warning(f"⚠️ Stock insuficiente. Faltan {faltante} unidad(es)")
+                
+                auto_purchase = st.checkbox(
+                    f"✓ Comprar {faltante} unidad(es) al proveedor (a crédito) automáticamente",
+                    value=False,
+                    key="auto_purchase_check",
+                    help="Registra automáticamente la compra al proveedor a crédito antes de la venta"
+                )
+                
+                if auto_purchase:
+                    col_prov1, col_prov2 = st.columns(2)
+                    with col_prov1:
+                        supplier_name = st.text_input(
+                            "Nombre del proveedor *",
+                            key="auto_supplier_name",
+                            placeholder="Ej: Distribuidora XYZ"
+                        )
+                    with col_prov2:
+                        purchase_cost = st.number_input(
+                            "Costo unitario de compra",
+                            min_value=0.0,
+                            step=1000.0,
+                            value=float(prod.get("cost", 0)),
+                            format="%.0f",
+                            key="auto_purchase_cost",
+                            help="Costo por unidad al proveedor"
+                        )
+                    
+                    total_compra = faltante * purchase_cost
+                    st.info(f"💰 Total a deber al proveedor: {cop(total_compra)}")
 
         # Campos adicionales para ventas a crédito
         phone, due = None, None
@@ -175,52 +216,105 @@ def render_sales(db):
             else:
                 prod = db["inventory"][selected_idx]
                 qty = int(quantity)
+                stock_disponible = prod.get("stock", 0)
                 
-                # Advertencia si el stock es insuficiente, pero permite continuar
-                if prod.get("stock", 0) < qty:
-                    st.warning(f"⚠️ Advertencia: Stock actual es {prod.get('stock', 0)} unidades. El stock quedará en negativo ({prod.get('stock', 0) - qty}).")
-                
-                # Permitir la venta siempre
-                price = float(unit_price or prod.get("price", 0))
-                current_cost = float(prod.get("cost", 0))
-                
-                sale = {
-                    "id": uid(), 
-                    "date": sdate.isoformat(), 
-                    "item_id": prod["id"],
-                    "quantity": qty, 
-                    "unit_price": price, 
-                    "cost_at_sale": current_cost,
-                    "customer": customer,
-                    "payment": payment, 
-                    "notes": notes, 
-                    "inv": bool(inv_flag_sale)
-                }
-                
-                insert_record("sales", sale)
-
-                # Actualizar Inventario (puede quedar negativo)
-                new_stock = int(prod.get("stock", 0)) - qty
-                update_record("inventory", {"stock": new_stock}, prod["id"])
-
-                # Registrar Crédito si es Fiado
-                if payment == "Fiado":
-                    credit = {
+                # Validar si necesita compra automática
+                if stock_disponible < qty and not auto_purchase:
+                    st.error(f"⚠️ Stock insuficiente ({stock_disponible} disponibles). Marca la opción de compra al proveedor para continuar.")
+                elif auto_purchase and not supplier_name.strip():
+                    st.error("⚠️ Debes indicar el nombre del proveedor para la compra automática.")
+                else:
+                    # Si hay compra automática, registrarla primero
+                    if auto_purchase and stock_disponible < qty:
+                        from database import insert_record as db_insert
+                        
+                        faltante = qty - stock_disponible
+                        purchase_id = uid()
+                        
+                        # Registrar la compra
+                        purchase = {
+                            "id": purchase_id,
+                            "date": sdate.isoformat(),
+                            "item_id": prod["id"],
+                            "quantity": faltante,
+                            "unit_cost": float(purchase_cost),
+                            "supplier": supplier_name.strip(),
+                            "notes": f"Compra automática para venta - Cliente: {customer or 'N/A'}",
+                            "invoice": ""
+                        }
+                        db_insert("purchases", purchase)
+                        
+                        # Actualizar stock después de la compra
+                        new_stock_after_purchase = stock_disponible + faltante
+                        update_record("inventory", {"stock": new_stock_after_purchase}, prod["id"])
+                        
+                        # Registrar crédito con proveedor
+                        total_deuda_proveedor = faltante * float(purchase_cost)
+                        db_insert("supplier_credits", {
+                            "id": uid(),
+                            "supplier": supplier_name.strip(),
+                            "date": sdate.isoformat(),
+                            "purchase_id": purchase_id,
+                            "invoice": "",
+                            "total": total_deuda_proveedor,
+                            "paid": 0.0,
+                            "due_date": None,
+                            "notes": f"Compra para venta - Cliente: {customer or 'N/A'}"
+                        })
+                        
+                        # Actualizar costo del producto si es diferente
+                        if float(purchase_cost) > 0:
+                            update_record("inventory", {"cost": float(purchase_cost)}, prod["id"])
+                        
+                        # Refrescar datos del producto
+                        prod = next((p for p in db["inventory"] if p["id"] == prod["id"]), prod)
+                    
+                    # Registrar la venta
+                    price = float(unit_price or prod.get("price", 0))
+                    current_cost = float(prod.get("cost", 0))
+                    
+                    sale = {
                         "id": uid(), 
-                        "customer": customer or "Cliente", 
-                        "sale_id": sale["id"],
                         "date": sdate.isoformat(), 
-                        "total": qty * price, 
-                        "paid": 0.0,
-                        "due_date": due.isoformat() if isinstance(due, date) else None,
-                        "phone": phone or "", 
-                        "notes": ""
+                        "item_id": prod["id"],
+                        "quantity": qty, 
+                        "unit_price": price, 
+                        "cost_at_sale": current_cost,
+                        "customer": customer,
+                        "payment": payment, 
+                        "notes": notes, 
+                        "inv": bool(inv_flag_sale)
                     }
-                    insert_record("credits", credit)
+                    
+                    insert_record("sales", sale)
 
-                profit = (price - current_cost) * qty
-                st.success(f"Venta registrada exitosamente. Utilidad: {cop(profit)}")
-                st.rerun()
+                    # Actualizar Inventario después de la venta
+                    final_stock = int(prod.get("stock", 0)) - qty
+                    update_record("inventory", {"stock": final_stock}, prod["id"])
+
+                    # Registrar Crédito si es Fiado
+                    if payment == "Fiado":
+                        credit = {
+                            "id": uid(), 
+                            "customer": customer or "Cliente", 
+                            "sale_id": sale["id"],
+                            "date": sdate.isoformat(), 
+                            "total": qty * price, 
+                            "paid": 0.0,
+                            "due_date": due.isoformat() if isinstance(due, date) else None,
+                            "phone": phone or "", 
+                            "notes": ""
+                        }
+                        insert_record("credits", credit)
+
+                    profit = (price - current_cost) * qty
+                    
+                    if auto_purchase:
+                        st.success(f"✓ Compra al proveedor y venta registradas exitosamente. Utilidad: {cop(profit)}")
+                    else:
+                        st.success(f"✓ Venta registrada exitosamente. Utilidad: {cop(profit)}")
+                    
+                    st.rerun()
 
     st.markdown("<hr style='margin: 2rem 0;'>", unsafe_allow_html=True)
 
