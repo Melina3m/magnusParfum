@@ -1,0 +1,431 @@
+/* ==================== VARIABLES ==================== */
+:root {
+    --primary: #1a1a2e;
+    --secondary: #16213e;
+    --accent: #0f3460;
+    --success: #06d6a0;
+    --warning: #ffd166;
+    --danger: #ef476f;
+    --text: #2d3436;
+    --text-light: #636e72;
+    --bg: #f8f9fa;
+    --white: #ffffff;
+    --border: #e1e4e8;
+}
+
+/* ==================== TIPOGRAFÍA ==================== */
+* {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+h1, h2, h3 {
+    color: var(--primary) !important;
+    font-weight: 700 !important;
+}
+
+h1 {
+    font-size: 2rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+h2 {
+    font-size: 1.5rem !important;
+    margin-bottom: 1rem !important;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.5rem;
+}
+
+h3 {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+}
+
+/* ==================== MÉTRICAS ==================== */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    padding: 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-testid="metric-container"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: var(--text-light) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: var(--primary) !important;
+}
+
+[data-testid="stMetricDelta"] {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+
+/* ==================== PESTAÑAS ==================== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    background: var(--white);
+    padding: 0.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 2.5rem;
+    padding: 0 1rem;
+    background-color: transparent;
+    border-radius: 6px;
+    color: var(--text-light);
+    font-weight: 500;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: var(--bg);
+    color: var(--primary);
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 100%) !important;
+    color: white !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* ==================== FORMULARIOS ==================== */
+.stForm {
+    background: var(--white);
+    padding: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
+}
+
+input, textarea, select {
+    border-radius: 6px !important;
+    border: 1px solid var(--border) !important;
+    font-size: 1rem !important;
+}
+
+label {
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    font-size: 0.875rem !important;
+}
+
+/* ==================== BOTONES ==================== */
+.stButton > button {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.625rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    min-height: 44px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stFormSubmitButton > button {
+    background: linear-gradient(135deg, var(--danger) 0%, #c41e3a 100%);
+    width: 100%;
+    padding: 0.875rem;
+    font-size: 1rem;
+    min-height: 48px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+
+.stFormSubmitButton > button:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+}
+
+.stDownloadButton > button {
+    background: linear-gradient(135deg, var(--success) 0%, #04a777 100%);
+    border: none;
+}
+
+/* ==================== DATAFRAMES ==================== */
+[data-testid="stDataFrame"] {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid var(--border);
+}
+
+[data-testid="stDataFrame"] table {
+    font-size: 0.875rem;
+}
+
+[data-testid="stDataFrame"] thead {
+    background: var(--primary);
+    color: white;
+}
+
+[data-testid="stDataFrame"] thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.875rem;
+    font-size: 0.75rem;
+}
+
+/* ==================== ALERTAS ==================== */
+.stAlert {
+    border-radius: 8px;
+    border: none;
+    padding: 1rem;
+    font-weight: 500;
+}
+
+.stSuccess {
+    background: #d4f1e8;
+    color: #037856;
+    border-left: 4px solid var(--success);
+}
+
+.stWarning {
+    background: #fff4d9;
+    color: #996c00;
+    border-left: 4px solid var(--warning);
+}
+
+.stError {
+    background: #ffd9e0;
+    color: #c4183c;
+    border-left: 4px solid var(--danger);
+}
+
+.stInfo {
+    background: #d9e8ff;
+    color: #0c4a9e;
+    border-left: 4px solid var(--accent);
+}
+
+/* ==================== EXPANDERS ==================== */
+.streamlit-expanderHeader {
+    background: var(--white);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 0.875rem 1.25rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.streamlit-expanderContent {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 1.25rem;
+    background: var(--white);
+}
+
+/* ==================== CARDS PERSONALIZADOS ==================== */
+.card-metric {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 10px;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-metric:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.card-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.card-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+
+.card-note {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+.card-panel {
+    background: var(--white);
+    border-radius: 10px;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* ==================== SEPARADORES ==================== */
+hr {
+    border: none;
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem 0;
+}
+
+/* ==================== RESPONSIVE MÓVIL ==================== */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    h2 {
+        font-size: 1.25rem !important;
+    }
+    
+    h3 {
+        font-size: 1.1rem !important;
+    }
+    
+    .card-value {
+        font-size: 1.5rem;
+    }
+    
+    .stForm {
+        padding: 1rem;
+    }
+    
+    [data-testid="metric-container"] {
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem !important;
+    }
+    
+    .stButton > button {
+        font-size: 0.875rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Inputs táctiles */
+    input, textarea, select {
+        font-size: 16px !important;
+        min-height: 44px !important;
+        padding: 0.5rem !important;
+    }
+    
+    /* Pestañas más compactas */
+    .stTabs [data-baseweb="tab"] {
+        font-size: 0.875rem;
+        padding: 0 0.75rem;
+        height: 2.25rem;
+    }
+    
+    /* Tablas con scroll */
+    [data-testid="stDataFrame"] {
+        overflow-x: auto;
+        font-size: 0.8rem;
+    }
+}
+
+/* ==================== OPTIMIZACIÓN TÁCTIL ==================== */
+@media (hover: none) and (pointer: coarse) {
+    /* Deshabilitar hover effects en dispositivos táctiles */
+    [data-testid="metric-container"]:hover,
+    .card-metric:hover,
+    .stButton > button:hover,
+    .stTabs [data-baseweb="tab"]:hover {
+        transform: none;
+        box-shadow: inherit;
+        background-color: inherit;
+        color: inherit;
+    }
+    
+    .stButton > button,
+    .stFormSubmitButton > button {
+        min-height: 48px;
+        padding: 0.875rem 1.25rem;
+        font-size: 1rem;
+    }
+    
+    /* Espacios táctiles mínimos */
+    button, a, input, select {
+        min-height: 44px;
+    }
+}
+
+/* ==================== SCROLLBAR ==================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+/* ==================== CAPTION ==================== */
+.stCaption {
+    font-size: 0.875rem !important;
+    color: var(--text-light) !important;
+    font-weight: 500 !important;
+}
+
+/* ==================== ANIMACIONES (solo desktop) ==================== */
+@media (min-width: 769px) and (prefers-reduced-motion: no-preference) {
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(15px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    [data-testid="metric-container"],
+    .stForm,
+    .card-metric {
+        animation: fadeInUp 0.4s ease-out;
+    }
+    
+    /* Delay progresivo para métricas */
+    [data-testid="column"]:nth-child(1) [data-testid="metric-container"] {
+        animation-delay: 0.05s;
+    }
+    [data-testid="column"]:nth-child(2) [data-testid="metric-container"] {
+        animation-delay: 0.1s;
+    }
+    [data-testid="column"]:nth-child(3) [data-testid="metric-container"] {
+        animation-delay: 0.15s;
+    }
+    [data-testid="column"]:nth-child(4) [data-testid="metric-container"] {
+        animation-delay: 0.2s;
+    }
+}
