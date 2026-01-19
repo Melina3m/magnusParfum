@@ -48,7 +48,7 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
                       balance_before: float, balance_after: float,
                       notes: str = "", breakdown: list = None):
     """
-    Genera un recibo PDF completo con breakdown y historial de abonos
+    Genera un recibo PDF completo con breakdown del abono actual
     
     Args:
         db: Base de datos
@@ -85,7 +85,7 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
     if notes:
         _pdf_kv(pdf, "Notas", notes)
 
-    # Desglose de aplicación con historial
+    # Desglose de aplicación
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "Desglose de aplicación", ln=1)
@@ -97,68 +97,18 @@ def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
         pdf.cell(50, 7, "ID deuda", border=1, align="C", fill=True)
         pdf.cell(40, 7, "Fecha", border=1, align="C", fill=True)
         pdf.cell(40, 7, "Aplicado", border=1, align="C", fill=True)
-        pdf.cell(40, 7, "Saldo Total", border=1, align="C", fill=True)
+        pdf.cell(40, 7, "Saldo restante", border=1, align="C", fill=True)
         pdf.ln(7)
         
-        # Breakdown de HOY (aplicación actual)
+        # Solo el breakdown del abono actual
         for row in breakdown:
             full_id = str(row.get("id", ""))
             short_id = full_id[-8:] if len(full_id) > 8 else full_id
             pdf.cell(50, 7, short_id, border=1)
-            pdf.cell(40, 7, str(row.get("date", ""))[:10], border=1)
+            pdf.cell(40, 7, str(row.get("date", ""))[:10], border=1, align="C")
             pdf.cell(40, 7, cop(row.get("applied", 0)), border=1, align="R")
-            pdf.cell(40, 7, cop(balance_after), border=1, align="R")
+            pdf.cell(40, 7, cop(row.get("remaining", 0)), border=1, align="R")
             pdf.ln(7)
-        
-        # Historial de abonos anteriores
-        payment_history = []
-        current_receipt_id = receipt_id[-8:] if len(receipt_id) > 10 else receipt_id
-        
-        if who_type == "CLIENTE":
-            for payment in db.get("credit_payments", []):
-                if payment.get("customer", "").strip().lower() == who_name.strip().lower():
-                    payment_id = payment.get("id", "")[-8:]
-                    if payment_id != current_receipt_id:
-                        payment_history.append(payment)
-        else:  # PROVEEDOR
-            for payment in db.get("supplier_payments", []):
-                if payment.get("supplier", "").strip().lower() == who_name.strip().lower():
-                    payment_id = payment.get("id", "")[-8:]
-                    if payment_id != current_receipt_id:
-                        payment_history.append(payment)
-        
-        # Ordenar del más reciente al más antiguo
-        payment_history.sort(key=lambda x: x.get("date", ""), reverse=True)
-        
-        # Calcular saldo total para cada abono histórico
-        running_balance = balance_after
-        
-        if payment_history:
-            for payment in payment_history[:9]:  # Máximo 9 abonos anteriores
-                pdf.set_font("Helvetica", "", 9)
-                pdf.set_text_color(100, 100, 100)
-                
-                # Sumar el monto de este abono al saldo (vamos hacia atrás en el tiempo)
-                running_balance += float(payment.get("amount", 0))
-                
-                ref_id = payment.get("id", "")[-8:]
-                pdf.cell(50, 7, ref_id, border=1)
-                pdf.cell(40, 7, payment.get("date", "")[:10], border=1)
-                pdf.cell(40, 7, cop(payment.get("amount", 0)), border=1, align="R")
-                pdf.cell(40, 7, cop(running_balance), border=1, align="R")
-                pdf.ln(7)
-                
-                pdf.set_text_color(0, 0, 0)
-                pdf.set_font("Helvetica", "", 10)
-            
-            # Nota si hay más de 10 abonos totales
-            total_abonos = len(payment_history) + len(breakdown)
-            if total_abonos > 10:
-                pdf.ln(2)
-                pdf.set_font("Helvetica", "I", 8)
-                pdf.set_text_color(100, 100, 100)
-                pdf.cell(0, 5, f"(Mostrando 10 de {total_abonos} abonos totales)", ln=1)
-                pdf.set_text_color(0, 0, 0)
     else:
         pdf.multi_cell(0, 6, "El abono se aplicó a deudas abiertas según antigüedad (FIFO).")
 
