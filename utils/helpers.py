@@ -73,23 +73,16 @@ def apply_customer_payment(db, customer: str, amount: float, when: str, notes: s
         update_record("credits", {"paid": c["paid"]}, c["id"])
         remaining -= pay
     
-    # Registrar el pago
+    # Registrar el pago en Supabase
     payment_data = {
         "id": uid(), 
         "customer": customer, 
         "date": when, 
         "amount": float(amount),
         "notes": notes, 
-        "method": method,
-        "balance_before": balance_before,
-        "balance_after": balance_after,
-        "breakdown": breakdown or []
+        "method": method
     }
     insert_record("credit_payments", payment_data)
-    
-    if "credit_payments" not in db:
-        db["credit_payments"] = []
-    db["credit_payments"].insert(0, payment_data)
     
     return float(amount) - remaining
 
@@ -134,7 +127,7 @@ def apply_supplier_payment(db, supplier: str, amount: float, when: str, notes: s
         update_record("supplier_credits", {"paid": c["paid"]}, c["id"])
         remaining -= pay
     
-    # Registrar el pago
+    # Registrar el pago en Supabase
     payment_data = {
         "id": uid(), 
         "supplier": supplier, 
@@ -144,10 +137,6 @@ def apply_supplier_payment(db, supplier: str, amount: float, when: str, notes: s
         "method": method
     }
     insert_record("supplier_payments", payment_data)
-    
-    if "supplier_payments" not in db:
-        db["supplier_payments"] = []
-    db["supplier_payments"].insert(0, payment_data)
     
     return float(amount) - remaining
 
