@@ -3,7 +3,6 @@ import base64
 import os
 from utils import cop
 
-
 def _get_logo_temp_path(db):
     """Obtiene el logo desde settings y lo guarda temporalmente"""
     try:
@@ -18,7 +17,6 @@ def _get_logo_temp_path(db):
     except Exception:
         return None
 
-
 def _pdf_header(pdf: FPDF, title: str, logo_path):
     """Genera el encabezado del PDF con logo y título"""
     if logo_path:
@@ -26,7 +24,7 @@ def _pdf_header(pdf: FPDF, title: str, logo_path):
             pdf.image(logo_path, x=10, y=8, w=25)
         except Exception:
             pass
-
+    
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "MAGNUS PARFUM", ln=1, align="R")
     pdf.set_font("Helvetica", "", 11)
@@ -35,7 +33,6 @@ def _pdf_header(pdf: FPDF, title: str, logo_path):
     pdf.set_draw_color(200, 200, 200)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(6)
-
 
 def _pdf_kv(pdf: FPDF, label: str, value: str):
     """Genera una fila clave-valor en el PDF"""
@@ -46,17 +43,13 @@ def _pdf_kv(pdf: FPDF, label: str, value: str):
         value = "-"
     pdf.cell(0, 6, value, border=0, ln=1)
 
-
-def build_receipt_pdf(
-    db, *, who_type: str, who_name: str, receipt_id: str,
-    date_str: str, amount: float,
-    balance_before: float, balance_after: float,
-    notes: str = "", breakdown: list = None
-):
+def build_receipt_pdf(db, *, who_type: str, who_name: str, receipt_id: str,
+                      date_str: str, amount: float,
+                      balance_before: float, balance_after: float,
+                      notes: str = "", breakdown: list = None):
     """
-    Genera un recibo PDF con breakdown del abono actual + historial
+    Genera un recibo PDF con desglose correcto (saldo inicial → restando pagos)
     """
-
     logo_path = _get_logo_temp_path(db)
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -73,7 +66,7 @@ def build_receipt_pdf(
     _pdf_kv(pdf, "Monto abonado", cop(amount))
     _pdf_kv(pdf, "Saldo ANTES", cop(balance_before))
     _pdf_kv(pdf, "Saldo DESPUÉS", cop(balance_after))
-
+    
     if notes:
         _pdf_kv(pdf, "Notas", notes)
 
@@ -83,8 +76,8 @@ def build_receipt_pdf(
     pdf.cell(0, 8, "Desglose de aplicación", ln=1)
     pdf.set_font("Helvetica", "", 10)
 
-    if breakdown and len(breakdown) > 0:
-        # Encabezados
+    if breakdown:
+        # Encabezados tabla
         pdf.set_fill_color(240, 240, 240)
         pdf.cell(50, 7, "ID Ref.", border=1, align="C", fill=True)
         pdf.cell(40, 7, "Fecha", border=1, align="C", fill=True)
@@ -92,54 +85,43 @@ def build_receipt_pdf(
         pdf.cell(40, 7, "Saldo después", border=1, align="C", fill=True)
         pdf.ln(7)
 
-        # Abono actual
-        for row in breakdown:
-            full_id = str(row.get("id", ""))
-            short_id = full_id[-8:] if len(full_id) > 8 else full_id
-
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.cell(50, 7, short_id, border=1)
-            pdf.cell(40, 7, date_str[:10], border=1, align="C")
-            pdf.cell(40, 7, cop(row.get("applied", 0)), border=1, align="R")
-            pdf.cell(40, 7, cop(balance_after), border=1, align="R")
-            pdf.ln(7)
-
-        # Historial
+        # --- RECOGER TODOS LOS PAGOS ---
         payment_history = []
-        current_receipt_id = receipt_id[-8:] if len(receipt_id) > 10 else receipt_id
 
         if who_type == "CLIENTE":
-            for payment in db.get("credit_payments", []):
-                if payment.get("customer", "").strip().lower() == who_name.strip().lower():
-                    pid = payment.get("id", "")
-                    if pid[-8:] != current_receipt_id:
-                        payment_history.append(payment)
+            for p in db.get("credit_payments", []):
+                if p.get("customer", "").strip().lower() == who_name.strip().lower():
+                    payment_history.append({
+                        "id": p.get("id", ""),
+                        "date": p.get("date", ""),
+                        "amount": float(p.get("amount", 0))
+                    })
         else:
-            for payment in db.get("supplier_payments", []):
-                if payment.get("supplier", "").strip().lower() == who_name.strip().lower():
-                    pid = payment.get("id", "")
-                    if pid[-8:] != current_receipt_id:
-                        payment_history.append(payment)
+            for p in db.get("supplier_payments", []):
+                if p.get("supplier", "").strip().lower() == who_name.strip().lower():
+                    payment_history.append({
+                        "id": p.get("id", ""),
+                        "date": p.get("date", ""),
+                        "amount": float(p.get("amount", 0))
+                    })
 
-        # ✅ ORDEN CORRECTO (antiguo → nuevo)
-        payment_history.sort(key=lambda x: x.get("date", ""))
+        # ordenar por fecha ASC
+        payment_history.sort(key=lambda x: x["date"])
 
-        running_balance = balance_after
+        # calcular saldo inicial real
+        total_abonos = sum(p["amount"] for p in payment_history)
+        running_balance = balance_after + total_abonos
 
-        for payment in payment_history[:9]:
-            pdf.set_font("Helvetica", "", 9)
-            pdf.set_text_color(100, 100, 100)
+        # imprimir restando
+        for p in payment_history:
+            running_balance -= p["amount"]
 
-            running_balance += float(payment.get("amount", 0))
-
-            ref_id = payment.get("id", "")[-8:]
+            ref_id = p["id"][-8:] if len(p["id"]) > 8 else p["id"]
             pdf.cell(50, 7, ref_id, border=1)
-            pdf.cell(40, 7, payment.get("date", "")[:10], border=1, align="C")
-            pdf.cell(40, 7, cop(payment.get("amount", 0)), border=1, align="R")
+            pdf.cell(40, 7, p["date"][:10], border=1, align="C")
+            pdf.cell(40, 7, cop(p["amount"]), border=1, align="R")
             pdf.cell(40, 7, cop(running_balance), border=1, align="R")
             pdf.ln(7)
-
-            pdf.set_text_color(0, 0, 0)
     else:
         pdf.multi_cell(0, 6, "El abono se aplicó a deudas abiertas según antigüedad (FIFO).")
 
@@ -148,8 +130,7 @@ def build_receipt_pdf(
     pdf.set_font("Helvetica", "I", 9)
     pdf.multi_cell(0, 5, "Este recibo ha sido generado automáticamente por el sistema de gestión de Magnus Parfum.")
 
-    # Generar bytes
-    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
 
     try:
         if logo_path and os.path.exists(logo_path):
