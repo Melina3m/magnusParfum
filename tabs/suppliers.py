@@ -241,7 +241,7 @@ def render_suppliers(db):
         
         return
 
-    suppliers = sorted(list(per_supplier.keys()))
+    clientes = sorted(list(per_supplier.keys()))
     
     if suppliers:
         sel_supplier = st.selectbox(
@@ -260,18 +260,29 @@ def render_suppliers(db):
             </div>
         """, unsafe_allow_html=True)
         
+        # Importar función de saldos de caja y banco
+        from finance import cash_bank_balances
+        saldo_caja, saldo_banco = cash_bank_balances(db)
+        
+        # Mostrar disponibilidad
+        col_disp1, col_disp2 = st.columns(2)
+        with col_disp1:
+            st.info(f"💵 Disponible en Caja: **{cop(saldo_caja)}**")
+        with col_disp2:
+            st.info(f"🏦 Disponible en Banco: **{cop(saldo_banco)}**")
+        
         with st.form("form_pago_proveedor", clear_on_submit=True):
             col1, col2 = st.columns(2)
             
             with col1:
                 abono = st.number_input(
-                    "Monto del pago", 
+                    "Monto total del pago", 
                     min_value=0.0, 
                     step=1000.0, 
                     value=0.0, 
                     format="%.0f", 
                     key="input_pago_proveedor",
-                    help="Cantidad que se pagará al proveedor"
+                    help="Cantidad total que se pagará al proveedor"
                 )
             
             with col2:
@@ -282,22 +293,95 @@ def render_suppliers(db):
                     help="Fecha en que se realiza el pago"
                 )
             
-            col3, col4 = st.columns(2)
+            # Opción de dividir pago
+            dividir_pago = st.checkbox(
+                "Dividir pago entre Efectivo y Banco/Transferencia",
+                value=False,
+                key="dividir_pago_proveedor",
+                help="Paga usando ambas cuentas simultáneamente"
+            )
             
-            with col3:
-                medio_pago_sup = st.selectbox(
-                    "Forma de pago", 
-                    options=["Efectivo", "Transferencia", "Tarjeta"], 
-                    key="input_medio_pago_proveedor",
-                    help="Método de pago utilizado"
-                )
-            
-            with col4:
+            if dividir_pago and abono > 0:
+                st.markdown("#### Distribución del Pago")
+                
+                # Calcular sugerencia automática
+                if abono <= saldo_caja:
+                    # Todo en efectivo
+                    sugerencia_efectivo = abono
+                    sugerencia_banco = 0.0
+                elif abono <= saldo_banco:
+                    # Todo en banco
+                    sugerencia_efectivo = 0.0
+                    sugerencia_banco = abono
+                else:
+                    # Dividir: usar todo el efectivo disponible y el resto en banco
+                    sugerencia_efectivo = min(saldo_caja, abono)
+                    sugerencia_banco = abono - sugerencia_efectivo
+                
+                col_div1, col_div2 = st.columns(2)
+                
+                with col_div1:
+                    monto_efectivo = st.number_input(
+                        "Monto en Efectivo",
+                        min_value=0.0,
+                        max_value=float(abono),
+                        value=float(sugerencia_efectivo),
+                        step=1000.0,
+                        format="%.0f",
+                        key="monto_efectivo_prov",
+                        help=f"Disponible: {cop(saldo_caja)}"
+                    )
+                
+                with col_div2:
+                    monto_banco = st.number_input(
+                        "Monto en Transferencia",
+                        min_value=0.0,
+                        max_value=float(abono),
+                        value=float(sugerencia_banco),
+                        step=1000.0,
+                        format="%.0f",
+                        key="monto_banco_prov",
+                        help=f"Disponible: {cop(saldo_banco)}"
+                    )
+                
+                # Validación de suma
+                total_dividido = monto_efectivo + monto_banco
+                if abs(total_dividido - abono) > 0.01:
+                    st.error(f"⚠️ La suma ({cop(total_dividido)}) debe ser igual al monto total ({cop(abono)})")
+                
+                # Validación de disponibilidad
+                if monto_efectivo > saldo_caja:
+                    st.warning(f"⚠️ No hay suficiente efectivo. Disponible: {cop(saldo_caja)}")
+                if monto_banco > saldo_banco:
+                    st.warning(f"⚠️ No hay suficiente en banco. Disponible: {cop(saldo_banco)}")
+                
+                medio_pago_sup = None  # No se usa cuando se divide
                 notas_abono = st.text_input(
                     "Notas (opcional)", 
                     key="input_notas_pago_proveedor",
-                    placeholder="Observaciones sobre el pago"
+                    placeholder="Pago dividido: Efectivo + Transferencia"
                 )
+            else:
+                # Pago simple (un solo método)
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    medio_pago_sup = st.selectbox(
+                        "Forma de pago", 
+                        options=["Efectivo", "Transferencia", "Tarjeta"], 
+                        key="input_medio_pago_proveedor",
+                        help="Método de pago utilizado"
+                    )
+                
+                with col4:
+                    notas_abono = st.text_input(
+                        "Notas (opcional)", 
+                        key="input_notas_pago_proveedor_simple",
+                        placeholder="Observaciones sobre el pago"
+                    )
+                
+                monto_efectivo = 0.0
+                monto_banco = 0.0
             
             if abono > 0:
                 nuevo_saldo = max(0, saldo_actual - abono)
@@ -315,6 +399,18 @@ def render_suppliers(db):
                             <span>Pago a aplicar:</span>
                             <strong style='color: #037856;'>- {cop(abono)}</strong>
                         </div>
+                        {"" if not dividir_pago else f'''
+                        <div style='font-size: 0.85rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #06d6a0;'>
+                            <div style='display: flex; justify-content: space-between;'>
+                                <span>└ Efectivo:</span>
+                                <span>{cop(monto_efectivo)}</span>
+                            </div>
+                            <div style='display: flex; justify-content: space-between;'>
+                                <span>└ Transferencia:</span>
+                                <span>{cop(monto_banco)}</span>
+                            </div>
+                        </div>
+                        '''}
                         <div style='display: flex; justify-content: space-between; margin-top: 0.5rem; 
                                     padding-top: 0.5rem; border-top: 2px solid #06d6a0; font-size: 1.1rem;'>
                             <span>Nueva deuda:</span>
@@ -328,6 +424,19 @@ def render_suppliers(db):
         if ok:
             monto = float(abono or 0)
             if monto > 0:
+                # Validaciones para pago dividido
+                if dividir_pago:
+                    total_div = monto_efectivo + monto_banco
+                    if abs(total_div - monto) > 0.01:
+                        st.error("La suma de Efectivo + Transferencia debe ser igual al monto total.")
+                        st.stop()
+                    if monto_efectivo > saldo_caja:
+                        st.error(f"No hay suficiente efectivo. Disponible: {cop(saldo_caja)}")
+                        st.stop()
+                    if monto_banco > saldo_banco:
+                        st.error(f"No hay suficiente en banco. Disponible: {cop(saldo_banco)}")
+                        st.stop()
+                
                 before = sum(supplier_credit_saldo(c) for c in db["supplier_credits"]
                             if (c.get("supplier","").strip().lower() == sel_supplier.strip().lower()))
 
@@ -338,8 +447,25 @@ def render_suppliers(db):
                     and supplier_credit_saldo(c) > 0
                 ]
                 
-                applied = apply_supplier_payment(db, sel_supplier, monto, fecha_abono.isoformat(), 
-                                                notas_abono, medio_pago_sup)
+                # Aplicar pago(s)
+                if dividir_pago:
+                    # Pago dividido: registrar dos transacciones
+                    if monto_efectivo > 0:
+                        apply_supplier_payment(db, sel_supplier, monto_efectivo, 
+                                             fecha_abono.isoformat(), 
+                                             notas_abono or "Pago dividido - Efectivo", 
+                                             "Efectivo")
+                    if monto_banco > 0:
+                        apply_supplier_payment(db, sel_supplier, monto_banco, 
+                                             fecha_abono.isoformat(), 
+                                             notas_abono or "Pago dividido - Transferencia", 
+                                             "Transferencia")
+                    applied = monto
+                else:
+                    # Pago simple
+                    applied = apply_supplier_payment(db, sel_supplier, monto, 
+                                                    fecha_abono.isoformat(), 
+                                                    notas_abono, medio_pago_sup)
                 
                 after = sum(supplier_credit_saldo(c) for c in db["supplier_credits"]
                            if (c.get("supplier","").strip().lower() == sel_supplier.strip().lower()))
@@ -357,12 +483,17 @@ def render_suppliers(db):
                                 "applied": applied_s, "remaining": after_s
                             })
 
+                # Generar recibo PDF (solo uno, aunque sea pago dividido)
                 rid = "RP-" + uid()[-8:]
+                nota_pdf = notas_abono
+                if dividir_pago:
+                    nota_pdf = f"Pago dividido: {cop(monto_efectivo)} Efectivo + {cop(monto_banco)} Transferencia"
+                
                 pdf_bytes = build_receipt_pdf(
                     db, who_type="PROVEEDOR", who_name=sel_supplier, receipt_id=rid,
                     date_str=fecha_abono.isoformat(), amount=applied,
                     balance_before=before, balance_after=after,
-                    notes=notas_abono, breakdown=breakdown
+                    notes=nota_pdf, breakdown=breakdown
                 )
                 
                 st.session_state.pdf_data_sup = pdf_bytes
